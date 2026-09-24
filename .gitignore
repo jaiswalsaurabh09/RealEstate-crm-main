@@ -1,0 +1,27 @@
+# Build & Output Artifacts
+bin/
+obj/
+dist/
+build/
+publish/
+
+# Node.js & NPM
+node_modules/
+npm-debug.log*
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.production
+!.env.example
+
+# IDE Files
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Logs
+logs/
+*.log

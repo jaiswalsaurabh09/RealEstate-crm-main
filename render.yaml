@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: silverland-crm-api
+    runtime: docker
+    dockerfilePath: ./backend/SilverlandCRM.API/Dockerfile
+    healthCheckPath: /health
+    plan: free
+
+  - type: web
+    name: silverland-crm
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    plan: free
