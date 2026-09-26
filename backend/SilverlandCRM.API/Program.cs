@@ -99,4 +99,10 @@ app.UseAuthorization();
 app.MapHealthChecks("/health");
 app.MapControllers();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await DbSeeder.SeedAsync(db);
+}
+
 app.Run();
