@@ -25,3 +25,24 @@ npm-debug.log*
 # Logs
 logs/
 *.log
+
+# macOS
+.DS_Store
+
+# .NET build output
+**/bin/
+**/obj/
+
+# User-specific Visual Studio files
+.vs/
+*.user
+*.suo
+
+# Node
+node_modules/
+dist/
+
+# Environment files
+.env
+.env.*
+.env.example

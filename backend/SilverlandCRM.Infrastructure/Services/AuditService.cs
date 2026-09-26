@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using SilverlandCRM.Domain.Entities;
 using SilverlandCRM.Infrastructure.Data;
 
-namespace SilverlandCRM.Application.Services
+namespace SilverlandCRM.Infrastructure.Services
 {
     public class AuditService
     {

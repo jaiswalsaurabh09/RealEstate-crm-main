@@ -1,0 +1,6 @@
+@SilverlandCRM.API_HostAddress = http://localhost:5263
+
+GET {{SilverlandCRM.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
