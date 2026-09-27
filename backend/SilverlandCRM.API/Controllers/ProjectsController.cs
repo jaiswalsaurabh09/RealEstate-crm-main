@@ -6,7 +6,7 @@ using SilverlandCRM.Infrastructure.Services;
 
 namespace SilverlandCRM.API.Controllers;
 
-[Authorize(Roles = "Admin")]
+[Authorize]
 [ApiController]
 [Route("api/projects")]
 public class ProjectsController : ControllerBase
@@ -18,6 +18,7 @@ public class ProjectsController : ControllerBase
         _projectService = projectService;
     }
 
+    // Admin + Employee
     [HttpGet]
     public async Task<IActionResult> GetProjects(
         [FromQuery] bool includeInactive = false)
@@ -26,6 +27,7 @@ public class ProjectsController : ControllerBase
         return Ok(ApiResponse<List<ProjectDto>>.Ok(result));
     }
 
+    // Admin + Employee
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetProject(Guid id)
     {
@@ -37,6 +39,8 @@ public class ProjectsController : ControllerBase
         return Ok(ApiResponse<ProjectDto>.Ok(project));
     }
 
+    // Admin only
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> CreateProject(
         [FromBody] CreateProjectDto dto)
@@ -63,6 +67,8 @@ public class ProjectsController : ControllerBase
         }
     }
 
+    // Admin only
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateProject(
         Guid id,
@@ -91,6 +97,8 @@ public class ProjectsController : ControllerBase
         }
     }
 
+    // Admin only
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteProject(Guid id)
     {
@@ -117,19 +125,21 @@ public class ProjectsController : ControllerBase
         }
     }
 
+    // Admin only
+    [Authorize(Roles = "Admin")]
     [HttpPost("{id:guid}/activate")]
     public async Task<IActionResult> ActivateProject(Guid id)
     {
         var result = await SetActive(id, true);
-
         return result;
     }
 
+    // Admin only
+    [Authorize(Roles = "Admin")]
     [HttpPost("{id:guid}/deactivate")]
     public async Task<IActionResult> DeactivateProject(Guid id)
     {
         var result = await SetActive(id, false);
-
         return result;
     }
 
