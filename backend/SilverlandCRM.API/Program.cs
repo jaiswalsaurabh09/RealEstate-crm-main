@@ -9,9 +9,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
-using SilverlandCRM.Infrastructure.Services;
 using SilverlandCRM.Infrastructure.Data;
 using SilverlandCRM.Infrastructure.Identity;
+using SilverlandCRM.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,23 +22,35 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 var jwtSecret = builder.Configuration["Jwt:Secret"];
+
 if (string.IsNullOrWhiteSpace(jwtSecret))
 {
     if (builder.Environment.IsProduction())
     {
-        throw new InvalidOperationException("Fatal: 'Jwt:Secret' environment variable is required in Production.");
+        throw new InvalidOperationException(
+            "Fatal: 'Jwt:Secret' environment variable is required in Production.");
     }
+
     jwtSecret = "DevOnlySecretKeyWithMinimumLength32Chars123!";
 }
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<JwtTokenGenerator>();
 builder.Services.AddScoped<AuditService>();
+
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IEmployeeService, EmployeeService>();
+builder.Services.AddScoped<IProjectService, ProjectService>();
+builder.Services.AddScoped<ILeadService, LeadService>();
+builder.Services.AddScoped<ILeadImportService, LeadImportService>();
+
 builder.Services.AddHealthChecks();
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
@@ -47,36 +59,58 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
+
             ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "SilverlandCRM",
             ValidAudience = builder.Configuration["Jwt:Audience"] ?? "SilverlandClients",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtSecret))
         };
     });
 
 builder.Services.AddAuthorization();
+
 builder.Services.AddControllers();
+
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Silverland CRM API", Version = "v1" });
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        In = ParameterLocation.Header,
-        Description = "Please enter Bearer JWT token",
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        BearerFormat = "JWT",
-        Scheme = "bearer"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement {
+    c.SwaggerDoc(
+        "v1",
+        new OpenApiInfo
         {
-            new OpenApiSecurityScheme {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
-    });
+            Title = "Silverland CRM API",
+            Version = "v1"
+        });
+
+    c.AddSecurityDefinition(
+        "Bearer",
+        new OpenApiSecurityScheme
+        {
+            In = ParameterLocation.Header,
+            Description = "Please enter Bearer JWT token",
+            Name = "Authorization",
+            Type = SecuritySchemeType.Http,
+            BearerFormat = "JWT",
+            Scheme = "bearer"
+        });
+
+    c.AddSecurityRequirement(
+        new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference
+                    {
+                        Type = ReferenceType.SecurityScheme,
+                        Id = "Bearer"
+                    }
+                },
+                Array.Empty<string>()
+            }
+        });
 });
 
 var app = builder.Build();
@@ -84,19 +118,13 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-var allowedOrigins = builder.Configuration["Cors:AllowedOrigins"]?.Split(',', StringSplitOptions.RemoveEmptyEntries)
-    ?? new[] { "https://silverland-crm.onrender.com", "http://localhost:5173" };
-
-app.UseCors(policy => policy
-    .WithOrigins(allowedOrigins)
-    .AllowAnyMethod()
-    .AllowAnyHeader()
-    .AllowCredentials());
+app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
+
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
