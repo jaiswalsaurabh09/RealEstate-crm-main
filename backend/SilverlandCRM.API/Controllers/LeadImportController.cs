@@ -20,20 +20,28 @@ public class LeadImportController : ControllerBase
 
     [HttpPost("import")]
     [RequestSizeLimit(25 * 1024 * 1024)]
-    public async Task<IActionResult> Import(IFormFile file)
+    public async Task<IActionResult> Import(
+        IFormFile file,
+        [FromForm] string portalType = "Generic")
     {
         if (file == null || file.Length == 0)
+        {
             return BadRequest(
-                ApiResponse<string>.Fail("Excel file is required."));
+                ApiResponse<string>.Fail("CSV or Excel file is required."));
+        }
 
         var extension = Path.GetExtension(file.FileName);
 
-        if (!string.Equals(extension, ".xlsx",
-                StringComparison.OrdinalIgnoreCase))
+        var supported =
+            string.Equals(extension, ".csv", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(extension, ".xls", StringComparison.OrdinalIgnoreCase);
+
+        if (!supported)
         {
             return BadRequest(
                 ApiResponse<string>.Fail(
-                    "Only .xlsx Excel files are supported."));
+                    "Only .csv, .xlsx and .xls files are supported."));
         }
 
         var userId = Guid.Parse(
@@ -50,7 +58,8 @@ public class LeadImportController : ControllerBase
                 stream,
                 file.FileName,
                 userId,
-                userName);
+                userName,
+                portalType);
 
             return Ok(
                 ApiResponse<ImportSummaryDto>.Ok(
