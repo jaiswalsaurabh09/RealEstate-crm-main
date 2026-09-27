@@ -93,12 +93,14 @@ export default function EmployeesPage() {
   }
 
   async function toggle(employee: Employee) {
-    if (employee.isLoginEnabled) {
-      await api.post(`/employees/${employee.id}/disable-login`);
-    } else {
-      await api.post(`/employees/${employee.id}/enable-login`);
+    const action = employee.isLoginEnabled ? 'disable' : 'enable';
+    const actionText = employee.isLoginEnabled ? 'Disable' : 'Enable';
+
+    if (!confirm(`${actionText} login for ${employee.name}?`)) {
+      return;
     }
 
+    await api.post(`/employees/${employee.id}/${action}-login`);
     await load();
   }
 
@@ -187,10 +189,15 @@ export default function EmployeesPage() {
                     <td className="px-4 py-4">
                       <button
                         onClick={() => toggle(employee)}
-                        className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        title={
                           employee.isLoginEnabled
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
+                            ? 'Click to disable login'
+                            : 'Click to enable login'
+                        }
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                          employee.isLoginEnabled
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                            : 'bg-red-100 text-red-700 hover:bg-red-200'
                         }`}
                       >
                         {employee.isLoginEnabled
