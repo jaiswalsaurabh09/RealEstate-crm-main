@@ -231,13 +231,17 @@ public class EmployeeService : IEmployeeService
         if (employee == null)
             throw new KeyNotFoundException("Employee not found.");
 
+        // Do not create unnecessary audit records when
+        // the requested login state is already applied.
+        if (employee.IsLoginEnabled == enabled)
+            return;
+
         employee.IsLoginEnabled = enabled;
         employee.UpdatedAt = DateTime.UtcNow;
 
         _db.EmployeeAudits.Add(new EmployeeAudit
         {
             EmployeeId = employee.Id,
-            EmployeeName = employee.Name,
             Action = enabled ? "LoginEnabled" : "LoginDisabled",
             ChangedByUserId = adminId,
             ChangedByUserName = adminName,
