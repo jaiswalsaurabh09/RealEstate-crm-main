@@ -112,10 +112,6 @@ export default function LeadsPage() {
     }
   }
 
-  /*
-   * Employees are only needed by Admin.
-   * Employee users don't need the employee list.
-   */
   async function loadEmployees() {
     if (!isAdmin) {
       setEmployees([]);

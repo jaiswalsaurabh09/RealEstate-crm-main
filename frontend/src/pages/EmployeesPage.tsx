@@ -93,9 +93,11 @@ export default function EmployeesPage() {
   }
 
   async function toggle(employee: Employee) {
-    await api.post(
-      `/employees/${employee.id}/toggle-login`
-    );
+    if (employee.isLoginEnabled) {
+      await api.post(`/employees/${employee.id}/disable-login`);
+    } else {
+      await api.post(`/employees/${employee.id}/enable-login`);
+    }
 
     await load();
   }
