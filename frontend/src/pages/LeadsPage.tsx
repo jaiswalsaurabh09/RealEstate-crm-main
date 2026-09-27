@@ -27,22 +27,33 @@ function items(payload: any): any[] {
 
   if (Array.isArray(value)) return value;
 
-  return value?.items || value?.data || value?.results || [];
+  return (
+    value?.items ||
+    value?.data ||
+    value?.results ||
+    []
+  );
 }
 
 export default function LeadsPage() {
   const { user } = useAuth();
 
+  const isAdmin = user?.role === 'Admin';
+  const isEmployee = user?.role === 'Employee';
+
   const [leads, setLeads] = useState<Lead[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+
   const [search, setSearch] = useState('');
   const [responseFilter, setResponseFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
   const [assigning, setAssigning] = useState<Lead | null>(null);
+
   const [page, setPage] = useState(1);
   const pageSize = 20;
 
@@ -81,18 +92,48 @@ export default function LeadsPage() {
     }
   }
 
-  async function loadLookups() {
+  /*
+   * Load projects independently.
+   * A failed employee API must not prevent projects
+   * from appearing.
+   */
+  async function loadProjects() {
     try {
-      const [projectResponse, employeeResponse] =
-        await Promise.all([
-          api.get('/projects'),
-          api.get('/employees'),
-        ]);
+      const response = await api.get('/projects', {
+        params: {
+          includeInactive: false,
+        },
+      });
 
-      setProjects(items(projectResponse));
-      setEmployees(items(employeeResponse));
-    } catch {
-      // Employees/projects are optional for employee users.
+      setProjects(items(response));
+    } catch (err) {
+      console.error('Unable to load projects', err);
+      setProjects([]);
+    }
+  }
+
+  /*
+   * Employees are only needed by Admin.
+   * Employee users don't need the employee list.
+   */
+  async function loadEmployees() {
+    if (!isAdmin) {
+      setEmployees([]);
+      return;
+    }
+
+    try {
+      const response = await api.get('/employees', {
+        params: {
+          page: 1,
+          pageSize: 100,
+        },
+      });
+
+      setEmployees(items(response));
+    } catch (err) {
+      console.error('Unable to load employees', err);
+      setEmployees([]);
     }
   }
 
@@ -101,11 +142,13 @@ export default function LeadsPage() {
   }, [page, responseFilter]);
 
   useEffect(() => {
-    loadLookups();
-  }, []);
+    loadProjects();
+    loadEmployees();
+  }, [isAdmin]);
 
   function openCreate() {
     setEditing(null);
+
     setForm({
       leadName: '',
       mobileNumber: '',
@@ -115,8 +158,17 @@ export default function LeadsPage() {
       responseDetails: '',
       projectId: '',
       leadSource: 'Manual',
-      assignedEmployeeId: '',
+
+      /*
+       * Employee automatically owns the lead.
+       * Admin starts with Unassigned.
+       */
+      assignedEmployeeId:
+        isEmployee && user?.id
+          ? user.id
+          : '',
     });
+
     setShowForm(true);
   }
 
@@ -132,7 +184,15 @@ export default function LeadsPage() {
       responseDetails: lead.responseDetails || '',
       projectId: lead.projectId || '',
       leadSource: lead.leadSource || 'Manual',
-      assignedEmployeeId: lead.assignedEmployeeId || '',
+
+      /*
+       * Employee cannot change ownership.
+       * Always use the logged-in employee.
+       */
+      assignedEmployeeId:
+        isEmployee && user?.id
+          ? user.id
+          : lead.assignedEmployeeId || '',
     });
 
     setShowForm(true);
@@ -142,20 +202,26 @@ export default function LeadsPage() {
     e.preventDefault();
 
     try {
+      /*
+       * Employee assignment is always forced to
+       * the logged-in employee.
+       *
+       * Admin can choose employee or Unassigned.
+       */
+      const assignedEmployeeId = isEmployee
+        ? user?.id
+        : form.assignedEmployeeId || undefined;
+
+      const payload = {
+        ...form,
+        projectId: form.projectId || undefined,
+        assignedEmployeeId,
+      };
+
       if (editing) {
-        await updateLead(editing.id, {
-          ...form,
-          projectId: form.projectId || undefined,
-          assignedEmployeeId:
-            form.assignedEmployeeId || undefined,
-        });
+        await updateLead(editing.id, payload);
       } else {
-        await createLead({
-          ...form,
-          projectId: form.projectId || undefined,
-          assignedEmployeeId:
-            form.assignedEmployeeId || undefined,
-        });
+        await createLead(payload);
       }
 
       setShowForm(false);
@@ -183,7 +249,7 @@ export default function LeadsPage() {
   }
 
   async function saveAssignment(employeeId: string) {
-    if (!assigning) return;
+    if (!assigning || !isAdmin) return;
 
     try {
       await assignLead(
@@ -208,6 +274,7 @@ export default function LeadsPage() {
           <h1 className="text-2xl font-bold text-slate-900">
             Master Leads
           </h1>
+
           <p className="text-sm text-slate-500">
             Manage and track all enquiries
           </p>
@@ -232,7 +299,9 @@ export default function LeadsPage() {
 
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) =>
+                setSearch(e.target.value)
+              }
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   setPage(1);
@@ -324,6 +393,7 @@ export default function LeadsPage() {
                       <div className="font-semibold text-slate-900">
                         {lead.leadName}
                       </div>
+
                       <div className="text-xs text-slate-500">
                         {lead.email || '-'}
                       </div>
@@ -348,7 +418,8 @@ export default function LeadsPage() {
                     </td>
 
                     <td className="px-4 py-3">
-                      {lead.assignedEmployeeName || 'Unassigned'}
+                      {lead.assignedEmployeeName ||
+                        'Unassigned'}
                     </td>
 
                     <td className="px-4 py-3">
@@ -357,25 +428,35 @@ export default function LeadsPage() {
 
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <button
-                          onClick={() => setAssigning(lead)}
-                          title="Assign"
-                          className="rounded p-2 text-indigo-600 hover:bg-indigo-50"
-                        >
-                          <UserRoundPlus size={17} />
-                        </button>
+
+                        {/* ASSIGN IS ADMIN ONLY */}
+                        {isAdmin && (
+                          <button
+                            onClick={() =>
+                              setAssigning(lead)
+                            }
+                            title="Assign"
+                            className="rounded p-2 text-indigo-600 hover:bg-indigo-50"
+                          >
+                            <UserRoundPlus size={17} />
+                          </button>
+                        )}
 
                         <button
-                          onClick={() => openEdit(lead)}
+                          onClick={() =>
+                            openEdit(lead)
+                          }
                           title="Edit"
                           className="rounded p-2 text-slate-600 hover:bg-slate-100"
                         >
                           <Pencil size={17} />
                         </button>
 
-                        {user?.role === 'Admin' && (
+                        {isAdmin && (
                           <button
-                            onClick={() => remove(lead.id)}
+                            onClick={() =>
+                              remove(lead.id)
+                            }
                             title="Delete"
                             className="rounded p-2 text-red-600 hover:bg-red-50"
                           >
@@ -399,7 +480,9 @@ export default function LeadsPage() {
           <div className="flex gap-2">
             <button
               disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() =>
+                setPage((p) => p - 1)
+              }
               className="rounded border px-3 py-1.5 text-sm disabled:opacity-40"
             >
               Previous
@@ -407,7 +490,9 @@ export default function LeadsPage() {
 
             <button
               disabled={leads.length < pageSize}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() =>
+                setPage((p) => p + 1)
+              }
               className="rounded border px-3 py-1.5 text-sm disabled:opacity-40"
             >
               Next
@@ -416,24 +501,34 @@ export default function LeadsPage() {
         </div>
       </div>
 
+      {/* CREATE / EDIT LEAD */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+
             <div className="flex items-center justify-between border-b p-5">
               <h2 className="text-lg font-bold">
-                {editing ? 'Edit Lead' : 'Add Lead'}
+                {editing
+                  ? 'Edit Lead'
+                  : 'Add Lead'}
               </h2>
 
               <button
-                onClick={() => setShowForm(false)}
+                onClick={() =>
+                  setShowForm(false)
+                }
                 className="rounded p-2 hover:bg-slate-100"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={save} className="space-y-4 p-5">
+            <form
+              onSubmit={save}
+              className="space-y-4 p-5"
+            >
               <div className="grid gap-4 md:grid-cols-2">
+
                 <input
                   placeholder="Lead Name *"
                   required
@@ -513,31 +608,70 @@ export default function LeadsPage() {
                   }
                   className="rounded-lg border p-2.5"
                 >
-                  <option value="">Select Project</option>
+                  <option value="">
+                    Select Project
+                  </option>
+
                   {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
+                    <option
+                      key={project.id}
+                      value={project.id}
+                    >
                       {project.name}
                     </option>
                   ))}
                 </select>
 
-                <select
-                  value={form.assignedEmployeeId}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      assignedEmployeeId: e.target.value,
-                    })
-                  }
-                  className="rounded-lg border p-2.5"
-                >
-                  <option value="">Unassigned</option>
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.name}
+                {/* ADMIN: Assignment dropdown */}
+                {isAdmin && (
+                  <select
+                    value={form.assignedEmployeeId}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        assignedEmployeeId:
+                          e.target.value,
+                      })
+                    }
+                    className="rounded-lg border p-2.5"
+                  >
+                    <option value="">
+                      Unassigned
                     </option>
-                  ))}
-                </select>
+
+                    {employees.map(
+                      (employee) => (
+                        <option
+                          key={employee.id}
+                          value={employee.id}
+                        >
+                          {employee.name}
+                        </option>
+                      )
+                    )}
+                  </select>
+                )}
+
+                {/* EMPLOYEE: Read-only assignment */}
+                {isEmployee && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      Assigned Employee
+                    </label>
+
+                    <input
+                      value={user?.name || ''}
+                      disabled
+                      readOnly
+                      className="w-full rounded-lg border bg-slate-100 p-2.5 text-slate-600"
+                    />
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      This lead is automatically assigned
+                      to you.
+                    </p>
+                  </div>
+                )}
 
                 <input
                   placeholder="Lead Source"
@@ -558,7 +692,8 @@ export default function LeadsPage() {
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    responseDetails: e.target.value,
+                    responseDetails:
+                      e.target.value,
                   })
                 }
                 rows={3}
@@ -568,7 +703,9 @@ export default function LeadsPage() {
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
+                  onClick={() =>
+                    setShowForm(false)
+                  }
                   className="rounded-lg border px-4 py-2 text-sm"
                 >
                   Cancel
@@ -586,9 +723,11 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {assigning && (
+      {/* ADMIN ONLY: ASSIGN LEAD */}
+      {assigning && isAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+
             <h2 className="mb-1 text-lg font-bold">
               Assign Lead
             </h2>
@@ -598,22 +737,34 @@ export default function LeadsPage() {
             </p>
 
             <select
-              defaultValue={assigning.assignedEmployeeId || ''}
+              defaultValue={
+                assigning.assignedEmployeeId || ''
+              }
               onChange={(e) =>
-                saveAssignment(e.target.value)
+                saveAssignment(
+                  e.target.value
+                )
               }
               className="mb-4 w-full rounded-lg border p-3"
             >
-              <option value="">Unassign</option>
+              <option value="">
+                Unassign
+              </option>
+
               {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
+                <option
+                  key={employee.id}
+                  value={employee.id}
+                >
                   {employee.name}
                 </option>
               ))}
             </select>
 
             <button
-              onClick={() => setAssigning(null)}
+              onClick={() =>
+                setAssigning(null)
+              }
               className="w-full rounded-lg border py-2"
             >
               Cancel
