@@ -1,57 +1,39 @@
-import { useEffect, useState } from 'react';
-import { Upload, FileSpreadsheet } from 'lucide-react';
-import { getImportHistory, importLeads } from '../api/importApi';
-import type { ImportHistory } from '../types/api';
-
-function items(payload: any): any[] {
-  const value = payload?.data?.data ?? payload?.data ?? payload;
-  return Array.isArray(value)
-    ? value
-    : value?.items || value?.data || value?.results || [];
-}
+import { FormEvent, useState } from 'react';
+import {
+  Upload,
+  FileSpreadsheet,
+  CheckCircle,
+  AlertCircle,
+} from 'lucide-react';
+import { importLeads } from '../api/importApi';
 
 export default function ImportPage() {
+  const [portalType, setPortalType] = useState('99acres');
   const [file, setFile] = useState<File | null>(null);
-  const [history, setHistory] = useState<ImportHistory[]>([]);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState('');
 
-  async function loadHistory() {
-    try {
-      const response = await getImportHistory();
-      setHistory(items(response));
-    } catch {
-      setHistory([]);
-    }
-  }
+  async function submit(e: FormEvent) {
+    e.preventDefault();
 
-  useEffect(() => {
-    loadHistory();
-  }, []);
-
-  async function upload() {
     if (!file) {
-      setMessage('Please select an Excel file.');
-      return;
-    }
-
-    if (!file.name.toLowerCase().endsWith('.xlsx')) {
-      setMessage('Only .xlsx files are supported.');
+      setError('Please select a CSV or Excel file.');
       return;
     }
 
     setLoading(true);
-    setMessage('');
+    setError('');
+    setResult(null);
 
     try {
-      await importLeads(file);
-      setMessage('Import completed successfully.');
+      const response = await importLeads(file, portalType);
+      setResult(response?.data?.data ?? response?.data ?? response);
       setFile(null);
-      await loadHistory();
     } catch (err: any) {
-      setMessage(
+      setError(
         err?.response?.data?.message ||
-          'Import failed.'
+        'Unable to import leads.'
       );
     } finally {
       setLoading(false);
@@ -59,130 +41,188 @@ export default function ImportPage() {
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl">
+
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-bold text-slate-900">
           Import Leads
         </h1>
-        <p className="text-sm text-slate-500">
-          Import leads from an Excel workbook
+
+        <p className="mt-1 text-sm text-slate-500">
+          Import leads from different property portals.
         </p>
       </div>
 
-      <div className="rounded-xl border bg-white p-6 shadow-sm">
-        <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 p-10">
-          <FileSpreadsheet
-            size={42}
-            className="mb-3 text-indigo-600"
-          />
+      <form
+        onSubmit={submit}
+        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+      >
 
-          <h2 className="font-semibold">
-            Select Excel file
-          </h2>
+        <div className="grid gap-5 md:grid-cols-2">
 
-          <p className="mb-5 text-sm text-slate-500">
-            Supported format: .xlsx, maximum 25 MB
-          </p>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Portal Type
+            </label>
 
-          <input
-            id="excel"
-            type="file"
-            accept=".xlsx"
-            className="hidden"
-            onChange={(e) =>
-              setFile(e.target.files?.[0] || null)
-            }
-          />
+            <select
+              value={portalType}
+              onChange={(e) => setPortalType(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 p-3 text-sm outline-none focus:border-indigo-500"
+            >
+              <option value="99acres">99acres</option>
+              <option value="MagicBricks">MagicBricks</option>
+              <option value="Housing.com">Housing.com</option>
+              <option value="CommonFloor">CommonFloor</option>
+              <option value="Facebook">Facebook</option>
+              <option value="Website">Website</option>
+              <option value="Generic">Generic / Other</option>
+            </select>
+          </div>
 
-          <label
-            htmlFor="excel"
-            className="cursor-pointer rounded-lg border bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
-          >
-            Choose File
-          </label>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              File
+            </label>
 
-          {file && (
-            <div className="mt-4 text-sm font-medium text-slate-700">
-              {file.name}
-            </div>
-          )}
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-slate-300 p-3 hover:border-indigo-400">
+              <Upload size={20} className="text-indigo-600" />
 
+              <span className="text-sm text-slate-600">
+                {file
+                  ? file.name
+                  : 'Choose CSV or Excel file'}
+              </span>
+
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+                onChange={(e) =>
+                  setFile(e.target.files?.[0] || null)
+                }
+              />
+            </label>
+          </div>
+
+        </div>
+
+        <div className="mt-5 rounded-lg bg-indigo-50 p-4 text-sm text-indigo-800">
+          <strong>{portalType}</strong> format will be used
+          for this import.
+          <br />
+          Existing leads with the same mobile number will be
+          updated instead of creating another lead.
+        </div>
+
+        <div className="mt-6 flex justify-end">
           <button
-            onClick={upload}
+            type="submit"
             disabled={!file || loading}
-            className="mt-5 flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Upload size={17} />
+            <FileSpreadsheet size={18} />
             {loading ? 'Importing...' : 'Import Leads'}
           </button>
-
-          {message && (
-            <div className="mt-4 rounded-lg bg-slate-100 px-4 py-3 text-sm">
-              {message}
-            </div>
-          )}
         </div>
+      </form>
+
+      {error && (
+        <div className="mt-5 flex gap-3 rounded-lg bg-red-50 p-4 text-sm text-red-700">
+          <AlertCircle size={20} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {result && (
+        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+
+          <div className="mb-5 flex items-center gap-3">
+            <CheckCircle
+              size={24}
+              className="text-green-600"
+            />
+
+            <div>
+              <h2 className="font-bold text-slate-900">
+                Import Completed
+              </h2>
+
+              <p className="text-sm text-slate-500">
+                {result.fileName}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+
+            <Stat
+              label="Total"
+              value={result.totalRows ?? 0}
+            />
+
+            <Stat
+              label="Created"
+              value={result.createdRows ?? 0}
+            />
+
+            <Stat
+              label="Updated"
+              value={result.updatedRows ?? 0}
+            />
+
+            <Stat
+              label="Duplicate"
+              value={result.duplicateRows ?? 0}
+            />
+
+            <Stat
+              label="Failed"
+              value={result.failedRows ?? 0}
+            />
+
+          </div>
+
+          {Array.isArray(result.errors) &&
+            result.errors.length > 0 && (
+              <div className="mt-5 rounded-lg bg-red-50 p-4">
+                <h3 className="mb-2 font-semibold text-red-800">
+                  Import Errors
+                </h3>
+
+                <div className="max-h-60 overflow-y-auto text-xs text-red-700">
+                  {result.errors.map(
+                    (item: string, index: number) => (
+                      <div key={index} className="mb-1">
+                        {item}
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-lg bg-slate-50 p-4 text-center">
+      <div className="text-2xl font-bold text-slate-900">
+        {value}
       </div>
 
-      <div className="mt-6 rounded-xl border bg-white shadow-sm">
-        <div className="border-b p-5">
-          <h2 className="font-bold">Import History</h2>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-[800px] w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-3">File</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Inserted</th>
-                <th className="px-4 py-3">Updated</th>
-                <th className="px-4 py-3">Failed</th>
-                <th className="px-4 py-3">Date</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y">
-              {history.map((row) => (
-                <tr key={row.id}>
-                  <td className="px-4 py-3">
-                    {row.fileName || '-'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {row.totalRows ?? 0}
-                  </td>
-                  <td className="px-4 py-3">
-                    {row.insertedRows ?? 0}
-                  </td>
-                  <td className="px-4 py-3">
-                    {row.updatedRows ?? 0}
-                  </td>
-                  <td className="px-4 py-3">
-                    {row.failedRows ?? 0}
-                  </td>
-                  <td className="px-4 py-3">
-                    {row.importedAt
-                      ? new Date(
-                          row.importedAt
-                        ).toLocaleString()
-                      : '-'}
-                  </td>
-                </tr>
-              ))}
-
-              {history.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="p-8 text-center text-slate-500"
-                  >
-                    No import history found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="text-xs text-slate-500">
+        {label}
       </div>
     </div>
   );
