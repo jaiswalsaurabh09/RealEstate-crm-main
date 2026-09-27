@@ -49,6 +49,29 @@ builder.Services.AddScoped<ILeadImportService, LeadImportService>();
 
 builder.Services.AddHealthChecks();
 
+/* CORS */
+var allowedOrigins = builder.Configuration["Cors:AllowedOrigins"]?
+    .Split(
+        ',',
+        StringSplitOptions.RemoveEmptyEntries |
+        StringSplitOptions.TrimEntries)
+    ?? Array.Empty<string>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("CorsPolicy", policy =>
+    {
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins);
+        }
+
+        policy
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -119,6 +142,8 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+
+app.UseCors("CorsPolicy");
 
 app.UseAuthentication();
 app.UseAuthorization();
