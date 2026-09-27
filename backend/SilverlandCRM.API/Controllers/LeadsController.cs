@@ -160,6 +160,35 @@ public class LeadsController : ControllerBase
         }
     }
 
+    [HttpPost("bulk-assign-unassigned")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> BulkAssignUnassigned(
+        BulkAssignLeadDto dto)
+    {
+        var userId = Guid.Parse(
+            User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var userName =
+            User.FindFirstValue(ClaimTypes.Name) ?? "Administrator";
+
+        try
+        {
+            var count = await _service.BulkAssignUnassignedLeadsAsync(
+                dto.AssignedEmployeeId,
+                userId,
+                userName);
+
+            return Ok(ApiResponse<int>.Ok(
+                count,
+                $"{count} unassigned lead(s) assigned successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(
+                ApiResponse<string>.Fail(ex.Message));
+        }
+    }
+
     [HttpGet("{id:guid}/audit")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Audit(Guid id)

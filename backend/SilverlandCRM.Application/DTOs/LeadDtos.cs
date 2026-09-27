@@ -48,6 +48,11 @@ public class AssignLeadDto
     public Guid? AssignedEmployeeId { get; set; }
 }
 
+public class BulkAssignLeadDto
+{
+    public Guid AssignedEmployeeId { get; set; }
+}
+
 public class LeadAuditDto
 {
     public Guid Id { get; set; }

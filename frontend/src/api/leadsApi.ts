@@ -48,3 +48,14 @@ export async function getLeadAudit(id: string) {
   const response = await api.get(`/leads/${id}/audit`);
   return response.data;
 }
+
+
+export async function bulkAssignUnassignedLeads(
+  assignedEmployeeId: string
+) {
+  const response = await api.post('/leads/bulk-assign-unassigned', {
+    assignedEmployeeId,
+  });
+
+  return response.data;
+}

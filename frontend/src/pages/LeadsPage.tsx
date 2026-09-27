@@ -14,6 +14,7 @@ import {
   getLeads,
   updateLead,
   assignLead,
+  bulkAssignUnassignedLeads,
 } from '../api/leadsApi';
 import { useAuth } from '../contexts/AuthContext';
 import type { Employee, Lead, Project } from '../types/api';
@@ -53,6 +54,10 @@ export default function LeadsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Lead | null>(null);
   const [assigning, setAssigning] = useState<Lead | null>(null);
+
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+  const [bulkEmployeeId, setBulkEmployeeId] = useState('');
+  const [bulkAssigning, setBulkAssigning] = useState(false);
 
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -263,6 +268,52 @@ export default function LeadsPage() {
     }
   }
 
+  async function saveBulkAssignment() {
+    if (!isAdmin || !bulkEmployeeId) {
+      alert('Please select an employee.');
+      return;
+    }
+
+    if (
+      !confirm(
+        'Are you sure you want to assign ALL currently unassigned leads to this employee?'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setBulkAssigning(true);
+
+      const response = await bulkAssignUnassignedLeads(
+        bulkEmployeeId
+      );
+
+      const result = unwrap(response);
+      const count =
+        typeof result === 'number'
+          ? result
+          : response?.message || 'Bulk assignment completed.';
+
+      alert(
+        typeof count === 'number'
+          ? `${count} unassigned lead(s) assigned successfully.`
+          : count
+      );
+
+      setBulkAssignOpen(false);
+      setBulkEmployeeId('');
+      await load();
+    } catch (err: any) {
+      alert(
+        err?.response?.data?.message ||
+          'Unable to bulk assign leads.'
+      );
+    } finally {
+      setBulkAssigning(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -276,13 +327,25 @@ export default function LeadsPage() {
           </p>
         </div>
 
-        <button
-          onClick={openCreate}
-          className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          <Plus size={18} />
-          Add Lead
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {isAdmin && (
+            <button
+              onClick={() => setBulkAssignOpen(true)}
+              className="flex items-center justify-center gap-2 rounded-lg border border-indigo-600 px-4 py-2.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-50"
+            >
+              <UserRoundPlus size={18} />
+              Assign All Unassigned
+            </button>
+          )}
+
+          <button
+            onClick={openCreate}
+            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            <Plus size={18} />
+            Add Lead
+          </button>
+        </div>
       </div>
 
       <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4">
@@ -715,6 +778,87 @@ export default function LeadsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN ONLY: BULK ASSIGN UNASSIGNED LEADS */}
+      {bulkAssignOpen && isAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-900">
+                Assign All Unassigned Leads
+              </h2>
+
+              <button
+                onClick={() => {
+                  setBulkAssignOpen(false);
+                  setBulkEmployeeId('');
+                }}
+                className="rounded p-2 hover:bg-slate-100"
+                disabled={bulkAssigning}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+              <strong>Important:</strong> This will assign
+              <strong> ALL currently unassigned leads</strong>,
+              including leads on other pages.
+            </div>
+
+            <label className="mt-5 mb-2 block text-sm font-medium text-slate-700">
+              Select Employee
+            </label>
+
+            <select
+              value={bulkEmployeeId}
+              onChange={(e) => setBulkEmployeeId(e.target.value)}
+              disabled={bulkAssigning}
+              className="w-full rounded-lg border border-slate-300 p-3"
+            >
+              <option value="">
+                Select Employee
+              </option>
+
+              {employees.map((employee) => (
+                <option
+                  key={employee.id}
+                  value={employee.id}
+                >
+                  {employee.name}
+                </option>
+              ))}
+            </select>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkAssignOpen(false);
+                  setBulkEmployeeId('');
+                }}
+                disabled={bulkAssigning}
+                className="rounded-lg border px-4 py-2 text-sm"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={saveBulkAssignment}
+                disabled={!bulkEmployeeId || bulkAssigning}
+                className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {bulkAssigning
+                  ? 'Assigning...'
+                  : 'Assign Leads'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}

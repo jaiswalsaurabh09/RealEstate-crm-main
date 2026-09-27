@@ -25,6 +25,7 @@ public interface ILeadService
     Task<LeadDto?> UpdateLeadAsync(Guid id, UpdateLeadDto dto, Guid userId, string userName, string role);
     Task<bool> DeleteLeadAsync(Guid id, Guid userId, string userName);
     Task<LeadDto?> AssignLeadAsync(Guid id, Guid? employeeId, Guid userId, string userName);
+    Task<int> BulkAssignUnassignedLeadsAsync(Guid employeeId, Guid userId, string userName);
     Task<List<LeadAuditDto>> GetAuditAsync(Guid leadId);
 }
 
@@ -378,6 +379,63 @@ public class LeadService : ILeadService
             id,
             userId,
             UserRole.Admin.ToString());
+    }
+
+    public async Task<int> BulkAssignUnassignedLeadsAsync(
+        Guid employeeId,
+        Guid userId,
+        string userName)
+    {
+        var validEmployee = await _db.Users.AnyAsync(x =>
+            x.Id == employeeId &&
+            x.Role == UserRole.Employee &&
+            x.IsActive &&
+            x.IsLoginEnabled &&
+            !x.IsDeleted);
+
+        if (!validEmployee)
+            throw new InvalidOperationException(
+                "Selected employee is not active or login is disabled.");
+
+        var employeeName = await _db.Users
+            .Where(x => x.Id == employeeId)
+            .Select(x => x.Name)
+            .FirstAsync();
+
+        var leads = await _db.Leads
+            .Where(x =>
+                !x.IsDeleted &&
+                x.AssignedEmployeeId == null)
+            .ToListAsync();
+
+        if (leads.Count == 0)
+            return 0;
+
+        var now = DateTime.UtcNow;
+
+        foreach (var lead in leads)
+        {
+            _db.LeadAudits.Add(new LeadAudit
+            {
+                LeadId = lead.Id,
+                MobileNumber = lead.MobileNumber,
+                LeadName = lead.LeadName,
+                ChangedByUserId = userId,
+                ChangedByUserName = userName,
+                ChangedAt = now,
+                ColumnName = "AssignedEmployee",
+                OldValue = null,
+                NewValue = employeeName,
+                Action = "Assigned"
+            });
+
+            lead.AssignedEmployeeId = employeeId;
+            lead.UpdatedAt = now;
+        }
+
+        await _db.SaveChangesAsync();
+
+        return leads.Count;
     }
 
     public async Task<List<LeadAuditDto>> GetAuditAsync(Guid leadId)
