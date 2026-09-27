@@ -132,6 +132,7 @@ public class EmployeeService : IEmployeeService
         _db.EmployeeAudits.Add(new EmployeeAudit
         {
             EmployeeId = employee.Id,
+            EmployeeName = employee.Name,
             Action = "Created",
             ChangedByUserId = adminId,
             ChangedByUserName = adminName,
@@ -166,6 +167,7 @@ public class EmployeeService : IEmployeeService
         _db.EmployeeAudits.Add(new EmployeeAudit
         {
             EmployeeId = employee.Id,
+            EmployeeName = employee.Name,
             Action = "Updated",
             ChangedByUserId = adminId,
             ChangedByUserName = adminName,
@@ -206,6 +208,7 @@ public class EmployeeService : IEmployeeService
         _db.EmployeeAudits.Add(new EmployeeAudit
         {
             EmployeeId = employee.Id,
+            EmployeeName = employee.Name,
             Action = "Deleted",
             ChangedByUserId = adminId,
             ChangedByUserName = adminName,
@@ -234,6 +237,7 @@ public class EmployeeService : IEmployeeService
         _db.EmployeeAudits.Add(new EmployeeAudit
         {
             EmployeeId = employee.Id,
+            EmployeeName = employee.Name,
             Action = enabled ? "LoginEnabled" : "LoginDisabled",
             ChangedByUserId = adminId,
             ChangedByUserName = adminName,
@@ -260,6 +264,7 @@ public class EmployeeService : IEmployeeService
         _db.EmployeeAudits.Add(new EmployeeAudit
         {
             EmployeeId = employee.Id,
+            EmployeeName = employee.Name,
             Action = "PasswordReset",
             ChangedByUserId = adminId,
             ChangedByUserName = adminName,
