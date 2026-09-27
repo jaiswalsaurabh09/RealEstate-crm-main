@@ -8,11 +8,9 @@ type AuditLog = {
   projectId?: string;
   projectName?: string;
   leadId?: string;
-
   action?: string;
   changedByUserName?: string;
   changedAt?: string;
-
   oldValue?: string;
   newValue?: string;
   reason?: string;
@@ -32,6 +30,7 @@ type Project = {
 type Lead = {
   id: string;
   name?: string;
+  leadName?: string;
   mobileNumber?: string;
 };
 
@@ -40,10 +39,12 @@ function items(payload: any): any[] {
 
   if (Array.isArray(value)) return value;
 
-  return value?.items ||
-         value?.data ||
-         value?.results ||
-         [];
+  return (
+    value?.items ||
+    value?.data ||
+    value?.results ||
+    []
+  );
 }
 
 export default function AuditPage() {
@@ -56,73 +57,111 @@ export default function AuditPage() {
   const [selectedId, setSelectedId] = useState('');
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
+  const [optionsLoading, setOptionsLoading] = useState(false);
 
-  async function loadMasterData() {
-    try {
-      const [employeeResponse, projectResponse, leadResponse] =
-        await Promise.all([
-          api.get('/employees', {
-            params: { page: 1, pageSize: 100 },
-          }),
-          api.get('/projects', {
-            params: { includeInactive: true },
-          }),
-          api.get('/leads', {
-            params: { page: 1, pageSize: 100 },
-          }),
-        ]);
-
-      setEmployees(items(employeeResponse.data));
-      setProjects(items(projectResponse.data));
-      setLeads(items(leadResponse.data));
-    } catch (error) {
-      console.error('Failed to load audit filters', error);
-    }
-  }
-
-  async function loadAudit(
-    auditType: string,
-    id: string
-  ) {
-    if (!id) {
+  /*
+   * Load only the list required for the selected audit type.
+   * Do NOT use Promise.all() here because one failed API
+   * must not prevent the other lists from loading.
+   */
+  useEffect(() => {
+    async function loadOptions() {
+      setOptionsLoading(true);
+      setSelectedId('');
       setLogs([]);
-      return;
-    }
 
-    setLoading(true);
+      try {
+        if (type === 'employee') {
+          const response = await api.get('/employees', {
+            params: {
+              page: 1,
+              pageSize: 100,
+            },
+          });
 
-    try {
-      let response;
+          setEmployees(items(response.data));
+        }
 
-      if (auditType === 'employee') {
-        response = await api.get(`/employees/${id}/audit`);
-      } else if (auditType === 'project') {
-        response = await api.get(`/projects/${id}/audit`);
-      } else {
-        response = await api.get(`/leads/${id}/audit`);
+        if (type === 'project') {
+          const response = await api.get('/projects', {
+            params: {
+              includeInactive: true,
+            },
+          });
+
+          const projectItems = items(response.data);
+
+          setProjects(projectItems);
+        }
+
+        if (type === 'lead') {
+          const response = await api.get('/leads', {
+            params: {
+              page: 1,
+              pageSize: 100,
+            },
+          });
+
+          setLeads(items(response.data));
+        }
+      } catch (error) {
+        console.error(
+          `Failed to load ${type} audit options`,
+          error
+        );
+      } finally {
+        setOptionsLoading(false);
       }
-
-      setLogs(items(response.data));
-    } catch (error) {
-      console.error('Failed to load audit logs', error);
-      setLogs([]);
-    } finally {
-      setLoading(false);
     }
-  }
 
-  useEffect(() => {
-    loadMasterData();
-  }, []);
-
-  useEffect(() => {
-    setSelectedId('');
-    setLogs([]);
+    loadOptions();
   }, [type]);
 
+  /*
+   * Load actual audit records after selecting
+   * employee/project/lead.
+   */
   useEffect(() => {
-    loadAudit(type, selectedId);
-  }, [selectedId, type]);
+    async function loadAudit() {
+      if (!selectedId) {
+        setLogs([]);
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        let response;
+
+        if (type === 'employee') {
+          response = await api.get(
+            `/employees/${selectedId}/audit`
+          );
+        } else if (type === 'project') {
+          response = await api.get(
+            `/projects/${selectedId}/audit`
+          );
+        } else {
+          response = await api.get(
+            `/leads/${selectedId}/audit`
+          );
+        }
+
+        setLogs(items(response.data));
+      } catch (error) {
+        console.error(
+          'Failed to load audit logs',
+          error
+        );
+
+        setLogs([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadAudit();
+  }, [type, selectedId]);
 
   const options =
     type === 'employee'
@@ -144,6 +183,7 @@ export default function AuditPage() {
       </div>
 
       <div className="mb-5 flex flex-wrap gap-3">
+        {/* Audit type */}
         <select
           value={type}
           onChange={(e) => setType(e.target.value)}
@@ -162,22 +202,31 @@ export default function AuditPage() {
           </option>
         </select>
 
+        {/* Entity selector */}
         <select
           value={selectedId}
-          onChange={(e) => setSelectedId(e.target.value)}
-          className="min-w-[260px] rounded-lg border bg-white px-4 py-2.5 text-sm"
+          onChange={(e) =>
+            setSelectedId(e.target.value)
+          }
+          disabled={optionsLoading}
+          className="min-w-[280px] rounded-lg border bg-white px-4 py-2.5 text-sm disabled:bg-slate-100"
         >
           <option value="">
-            Select {type}
+            {optionsLoading
+              ? 'Loading...'
+              : `Select ${type}`}
           </option>
 
           {options.map((item: any) => (
-            <option key={item.id} value={item.id}>
-              {item.name ||
-                item.projectName ||
-                item.mobileNumber ||
-                item.email ||
-                item.id}
+            <option
+              key={item.id}
+              value={item.id}
+            >
+              {type === 'project'
+                ? item.name
+                : type === 'employee'
+                  ? `${item.name}${item.email ? ` - ${item.email}` : ''}`
+                  : `${item.leadName || item.name || '-'}${item.mobileNumber ? ` - ${item.mobileNumber}` : ''}`}
             </option>
           ))}
         </select>
@@ -188,12 +237,29 @@ export default function AuditPage() {
           <table className="min-w-[1000px] w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3">Action</th>
-                <th className="px-4 py-3">Old Value</th>
-                <th className="px-4 py-3">New Value</th>
-                <th className="px-4 py-3">Reason</th>
+                <th className="px-4 py-3">
+                  Date
+                </th>
+
+                <th className="px-4 py-3">
+                  User
+                </th>
+
+                <th className="px-4 py-3">
+                  Action
+                </th>
+
+                <th className="px-4 py-3">
+                  Old Value
+                </th>
+
+                <th className="px-4 py-3">
+                  New Value
+                </th>
+
+                <th className="px-4 py-3">
+                  Reason
+                </th>
               </tr>
             </thead>
 
@@ -209,23 +275,37 @@ export default function AuditPage() {
                 </tr>
               )}
 
-              {!loading && logs.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-8 text-center text-slate-500"
-                  >
-                    {selectedId
-                      ? 'No audit records found.'
-                      : `Select a ${type} to view audit history.`}
-                  </td>
-                </tr>
-              )}
+              {!loading &&
+                !optionsLoading &&
+                selectedId &&
+                logs.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-8 text-center text-slate-500"
+                    >
+                      No audit records found.
+                    </td>
+                  </tr>
+                )}
+
+              {!loading &&
+                !optionsLoading &&
+                !selectedId && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-8 text-center text-slate-500"
+                    >
+                      Select a {type} to view audit history.
+                    </td>
+                  </tr>
+                )}
 
               {!loading &&
                 logs.map((log) => (
                   <tr key={log.id}>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="whitespace-nowrap px-4 py-3">
                       {log.changedAt
                         ? new Date(
                             log.changedAt
