@@ -601,18 +601,32 @@ export default function LeadsPage() {
                   className="rounded-lg border p-2.5"
                 />
 
-                <input
-                  placeholder="Mobile Number *"
-                  required
-                  value={form.mobileNumber}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      mobileNumber: e.target.value,
-                    })
-                  }
-                  className="rounded-lg border p-2.5"
-                />
+                <div>
+                  <input
+                    placeholder="Mobile Number *"
+                    required
+                    value={form.mobileNumber}
+                    disabled={isEmployee && !!editing}
+                    readOnly={isEmployee && !!editing}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        mobileNumber: e.target.value,
+                      })
+                    }
+                    className={`w-full rounded-lg border p-2.5 ${
+                      isEmployee && editing
+                        ? 'cursor-not-allowed bg-slate-100 text-slate-500'
+                        : ''
+                    }`}
+                  />
+
+                  {isEmployee && editing && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Employees cannot change mobile number.
+                    </p>
+                  )}
+                </div>
 
                 <input
                   type="email"
