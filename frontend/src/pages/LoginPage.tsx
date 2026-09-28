@@ -7,8 +7,8 @@ export default function LoginPage() {
   const { login, token, loading } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('admin@silverlandcrm.com');
-  const [password, setPassword] = useState('AdminPass123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   if (token) {
